@@ -6,7 +6,6 @@ import WeatherModuleFarenheit from '../WeatherModuleFarenheit'
 import WeatherModuleSelectDay from '../WeatherModuleSelectDay'
 import moment from 'moment'
 import { AxiosError } from 'axios'
-import { toJS } from 'mobx'
 
 const WeatherModuleDefault = (props?: any) => {
   const { weatherStore } = props
@@ -19,7 +18,7 @@ const WeatherModuleDefault = (props?: any) => {
     currentWindSpeed,
     currentHumidity,
     forecastData,
-    currentForecastData
+    currentForecastData,
   } = weatherStore
 
   const [searchTouched, setSearchTouched] = useState<boolean>(false)
@@ -63,10 +62,6 @@ const WeatherModuleDefault = (props?: any) => {
       weatherStore.clearLocation()
     }
   }, [])
-
-  useEffect(() => {
-    console.log(toJS(currentForecastData))
-  }, [currentForecastData])
 
   return (
     <>

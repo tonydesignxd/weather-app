@@ -55,11 +55,13 @@ export interface WeatherDetailModel {
   main: string;
 }
 
+export interface Coordinates {
+  lat: number;
+  lon: number;
+}
+
 export interface AirPollutionModel {
-  coord: {
-    lat: number;
-    lon: number;
-  },
+  coord: Coordinates,
   list: AirPollutionListItemModel[]
 }
 

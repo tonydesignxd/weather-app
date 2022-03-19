@@ -6,17 +6,20 @@ import WeatherModuleFarenheit from '../WeatherModuleFarenheit'
 import WeatherModuleSelectDay from '../WeatherModuleSelectDay'
 import moment from 'moment'
 import { AxiosError } from 'axios'
+import { toJS } from 'mobx'
 
 const WeatherModuleDefault = (props?: any) => {
   const { weatherStore } = props
   const {
-    coordinatesByLocationName,
+    locationName,
+    locationCountry,
     airPollutionInfo,
-    weatherSummary,
+    currentWeatherDescription,
     currentTemperature,
     currentWindSpeed,
     currentHumidity,
     forecastData,
+    currentForecastData
   } = weatherStore
 
   const [searchTouched, setSearchTouched] = useState<boolean>(false)
@@ -31,13 +34,11 @@ const WeatherModuleDefault = (props?: any) => {
   }
 
   const displayLocation = (): string => {
-    if (coordinatesByLocationName.length === 0) return ''
-    const { name, country } = coordinatesByLocationName[0]
-    return `${name}, ${country}`
+    return `${locationName}, ${locationCountry}`
   }
 
   const displayTime = (): string => {
-    const currentMoment = moment()
+    const currentMoment = moment.unix(currentForecastData.dt)
     const dayOfWeek = currentMoment.format('dddd')
     const hour = currentMoment.format('hhA')
     return `${dayOfWeek} ${hour}`
@@ -58,11 +59,14 @@ const WeatherModuleDefault = (props?: any) => {
 
   useEffect(() => {
     return () => {
-      weatherStore.clearCoordinatesData()
-      weatherStore.clearForecastData()
-      weatherStore.clearLocationName()
+      weatherStore.clearCurrentForecastData()
+      weatherStore.clearLocation()
     }
   }, [])
+
+  useEffect(() => {
+    console.log(toJS(currentForecastData))
+  }, [currentForecastData])
 
   return (
     <>
@@ -74,7 +78,7 @@ const WeatherModuleDefault = (props?: any) => {
       </ModuleWrapper>
       {
         searchTouched
-        && coordinatesByLocationName.length === 0
+        && !Object.keys(currentForecastData).length
         && (
           <ModuleWrapper>
             <WeatherModuleNotFound />
@@ -82,13 +86,13 @@ const WeatherModuleDefault = (props?: any) => {
         )
       }
       {
-        coordinatesByLocationName.length !== 0
+        Object.keys(currentForecastData).length !== 0
         && (
           <ModuleWrapper>
             <WeatherInfoWrapper>
               <div className='row'>
                 <p className={'location'}>{displayLocation()}</p>
-                <time className={'datetime'}>{displayTime()} - {weatherSummary}</time>
+                <time className={'datetime'}>{displayTime()} - {currentWeatherDescription}</time>
               </div>
               <div className='row flex'>
                 <div className='temperature-info'>
@@ -99,7 +103,7 @@ const WeatherModuleDefault = (props?: any) => {
                   <WeatherModuleFarenheit />
                 </div>
                 <div className='weather-info'>
-                  <span>Humidity: {currentHumidity}%</span>
+                  <span>Humidity: {currentHumidity}</span>
                   <span>Wind: {currentWindSpeed}</span>
                   <span>Air Quality: {airPollutionInfo}</span>
                 </div>

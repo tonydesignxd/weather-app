@@ -3,6 +3,8 @@ import styled from 'styled-components'
 export const ForecastWrapper = styled.ul`
   display: flex;
   gap: 10px;
+  margin-top: 10px;
+  margin-bottom: 0;
 `
 export const ForecastItem = styled.li`
   flex: 1;
@@ -18,7 +20,7 @@ export const ForecastItem = styled.li`
   .weekday {
     text-align: center;
     font-weight: bold;
-    font-size: 18px;
+    font-size: 16px;
     margin-bottom: 0;
   }
 

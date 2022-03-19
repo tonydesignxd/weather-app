@@ -1,6 +1,6 @@
-import { makeAutoObservable } from 'mobx'
+import { makeAutoObservable, runInAction } from 'mobx'
 import {
-  AirPollutionModel,
+  AirPollutionModel, Coordinates,
   ForecastDetailModel,
   GlobalUnit,
   WeatherForecastModel,
@@ -11,65 +11,60 @@ import { WeatherHelper } from '../helpers/weather.helper'
 
 class WeatherStore {
 
-  globalUnit: GlobalUnit = 'metric'
-  coordinatesByLocationName: WeatherModel[] = []
-  forecastData: WeatherForecastModel = {} as WeatherForecastModel
-  locationName = ''
-  airPollutionInfo = ''
   apiKey = process.env.REACT_APP_API_KEY
   apiURL = process.env.REACT_APP_API_URL
+
+  globalUnit: GlobalUnit = 'metric'
+  locationName!: string
+  locationCountry!: string
+  locationCoordinates: Coordinates = {} as Coordinates
+  airPollutionInfo!: string
+
+  currentForecastData: ForecastDetailModel = {} as ForecastDetailModel
+  dailyForecastData: ForecastDetailModel[] = []
 
   constructor() {
     makeAutoObservable(this)
   }
 
-  get weatherSummary(): string {
-    const currentWeather = this.forecastData?.current?.weather
-    if (!currentWeather) return ''
-    if (currentWeather.length === 0) return ''
-    return currentWeather[0].description
-  }
-
-  get dailyForecast(): ForecastDetailModel[] {
-    return this.forecastData?.daily
+  get currentWeatherDescription(): string {
+    return this.currentForecastData?.weather?.[0].description
   }
 
   get currentTemperature(): number {
-    const curTemp = this.forecastData?.current?.temp
-    return curTemp as number
+    return this.currentForecastData?.temp as number
   }
 
   get currentWindSpeed(): string {
-    const curWindSpd = this.forecastData?.current?.wind_speed
-    const curWindDeg = this.forecastData?.current?.wind_deg
+    if (!this.currentForecastData) return ''
+    const { wind_deg, wind_speed } = this.currentForecastData
     const windSpeedUnit = WeatherHelper.getWindUnit(this.globalUnit)
-    return `${curWindSpd} ${windSpeedUnit} ${WeatherHelper.getWindDirection(curWindDeg)}`
+    const windSpeedDeg = WeatherHelper.getWindDirection(wind_deg)
+    return `${wind_speed} ${windSpeedUnit} ${windSpeedDeg}`
   }
 
-  get currentHumidity(): number {
-    const curHumidity = this.forecastData?.current?.humidity
-    return curHumidity as number
+  get currentHumidity(): string {
+    return `${this.currentForecastData?.humidity}%`
   }
 
   getWeatherStatusIconURL(weatherCode: string): string {
     return `http://openweathermap.org/img/wn/${weatherCode}@2x.png`
   }
 
-  changeGlobalUnit(gloablUnit: GlobalUnit): void {
-    this.globalUnit = gloablUnit
+  changeGlobalUnit(globalUnit: GlobalUnit): void {
+    runInAction(() => this.globalUnit = globalUnit)
     void this.getCoordinatesByLocationName(this.locationName)
   }
 
-  clearCoordinatesData(): void {
-    this.coordinatesByLocationName.length = 0
+  clearCurrentForecastData(): void {
+    runInAction(() => this.currentForecastData = {} as ForecastDetailModel)
   }
 
-  clearForecastData(): void {
-    this.forecastData = {} as WeatherForecastModel
-  }
-
-  clearLocationName(): void {
-    this.locationName = ''
+  clearLocation(): void {
+    runInAction(() => {
+      this.locationName = ''
+      this.locationCountry = ''
+    })
   }
 
   getAirPollutionData(
@@ -80,7 +75,9 @@ class WeatherStore {
       const requestURL = `${this.apiURL}/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${this.apiKey}`
       return axios.get(requestURL)
         .then((response: AxiosResponse) => {
-          this.airPollutionInfo = WeatherHelper.getAirPollutionInfo(response.data?.list?.[0]?.main?.aqi)
+          runInAction(() => {
+            this.airPollutionInfo = WeatherHelper.getAirPollutionInfo(response.data?.list?.[0]?.main?.aqi)
+          })
           return resolve(response.data)
         })
         .catch((error: AxiosError) => {
@@ -93,17 +90,19 @@ class WeatherStore {
   getForecast(
     lat: number,
     lon: number,
-    dt?: number,
   ): Promise<WeatherForecastModel> {
     let requestURL = `${this.apiURL}/data/2.5/onecall?lat=${lat}&lon=${lon}&exclude=hourly,minutely&units=${this.globalUnit}&appid=${this.apiKey}`
-    if (dt) requestURL = requestURL.concat(`&dt=${dt}`)
     return new Promise((resolve, reject) => {
       return axios.get(requestURL)
         .then((response: AxiosResponse) => {
-          this.forecastData = response.data
+          runInAction(() => {
+            this.currentForecastData = response.data.current
+            this.dailyForecastData = response.data.daily
+          })
           return resolve(response.data)
         })
         .catch((error: AxiosError) => {
+          this.clearCurrentForecastData()
           return reject(error)
         })
     })
@@ -111,18 +110,25 @@ class WeatherStore {
 
   getCoordinatesByLocationName(
     locationName: string,
-    dt?: number
-  ): Promise<WeatherModel> {
+  ): Promise<WeatherModel[]> {
     const requestURL = `${this.apiURL}/geo/1.0/direct?q=${locationName}&limit=5&appid=${this.apiKey}`
     return new Promise((resolve, reject) => {
       return axios.get(requestURL)
         .then((response: AxiosResponse) => {
-          this.locationName = locationName
-          this.coordinatesByLocationName = response.data
-          if (this.coordinatesByLocationName.length !== 0) {
-            const { lat, lon } = response.data[0]
-            void this.getForecast(lat, lon, dt)
+          runInAction(() => {
+            this.locationName = locationName
+          })
+          if (response.data.length !== 0) {
+            const { lat, lon, country, name } = response.data[0]
+            runInAction(() => {
+              this.locationCountry = country
+              this.locationName = name
+              this.locationCoordinates = { lat, lon }
+            })
+            void this.getForecast(lat, lon)
             void this.getAirPollutionData(lat, lon)
+          } else {
+            this.clearCurrentForecastData()
           }
           return resolve(response.data)
         })
